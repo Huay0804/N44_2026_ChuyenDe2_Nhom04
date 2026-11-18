@@ -1,70 +1,55 @@
-# So sánh RRT và RRT* trong lập kế hoạch đường đi 2D (Chuyên đề 2 – Nhóm 04)
+# RRT và RRT* – Chuyên đề 2, Nhóm 04
 
-Mô phỏng và thực nghiệm so sánh RRT với RRT* cho robot hình đĩa trên bản đồ 2D tĩnh
-(kiểm tra va chạm liên tục trên toàn cạnh, cùng chuỗi mẫu theo seed).
+Mô phỏng và so sánh hai thuật toán tìm đường cho robot hình đĩa trong môi trường 2D có vật cản.
 
-## 1. Cài đặt
+## Cài đặt
 
-Yêu cầu Python ≥ 3.12.
+Dùng Python 3.12 trở lên. Chạy các lệnh từ thư mục chứa `main.py`.
 
-```bash
+```powershell
 python -m venv .venv
-# Windows: .venv\Scripts\activate      Linux/macOS: source .venv/bin/activate
-pip install -r requirements.txt
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
-## 2. Cấu trúc thư mục
+Nếu không kích hoạt được môi trường ảo, thay `python` bằng `.\.venv\Scripts\python.exe` trong các lệnh dưới.
 
-| Đường dẫn | Nội dung |
-|---|---|
-| `src/` | Lõi thuật toán: `rrt.py`, `rrt_star.py`, `node.py` (cây + đổi cha), `collision.py`, `environment.py`, `visualization.py` |
-| `configs/maps/` | Ba bản đồ: `simple`, `complex`, `narrow` (JSON) |
-| `experiments/benchmark.py` | Chạy 3 bản đồ × 20 seed × 2 thuật toán, ghi CSV/JSON |
-| `experiments/plots.py` | Tổng hợp thống kê (Wilson, Wilcoxon) và vẽ hình |
-| `experiments/extra.py` | Thực nghiệm bổ sung: bán kính lân cận, độ phức tạp, bộ nhớ, baseline, độ nhạy, cùng thời gian |
-| `tests/` | Kiểm thử bất biến cây, va chạm, tái lập, tính hợp lệ của đường |
-| `results/` | Dữ liệu và hình của các đợt chạy |
+## Chạy mô phỏng
 
-## 3. Chạy mô phỏng một lần
+```powershell
+# Giao diện tương tác: chạy/dừng, từng bước, đổi seed, lưu PNG
+python main.py --map simple --seed 0 --interactive
 
-```bash
-python main.py --map simple --seed 0                 # in kết quả của RRT và RRT*
-python main.py --map complex --seed 0 --save out.png  # lưu hình hai cây cạnh nhau
-python main.py --map narrow --seed 1 --interactive   # giao diện tương tác
+# Chạy và lưu ảnh hai thuật toán
+python main.py --map complex --seed 0 --save results/demo.png
 ```
 
-Tham số chính: `--iterations`, `--step-size`, `--goal-bias`, `--robot-radius`, `--gamma`, `--stop-on-first`.
+Bản đồ: `simple`, `complex`, `narrow`. Mặc định chạy cả RRT và RRT* với 2500 vòng lặp. Có thể chỉnh `--iterations`, `--step-size`, `--goal-bias`, `--robot-radius`.
 
-## 4. Chạy benchmark
+## Chạy thực nghiệm
 
-```bash
-# Đợt chuẩn trong báo cáo (20 seed, 2500 vòng lặp); mỗi cấu hình đo 5 lần, lấy trung vị thời gian
-python -m experiments.benchmark --output results/benchmark_v2 --seeds 20 --repeats 5
+```powershell
+python -m experiments.benchmark --output results/benchmark_new --seeds 20 --repeats 5
+```
 
-# Vẽ lại hình/thống kê từ dữ liệu đã có
+Chạy 3 bản đồ × 20 seed × 2 thuật toán, mỗi cấu hình đo 5 lần và lấy trung vị thời gian. Tự lưu dữ liệu, thống kê, Wilcoxon và hình tiếng Việt. Dùng thư mục đầu ra mới để tránh ghi đè kết quả cũ.
+
+## Tạo lại hình từ kết quả đã lưu
+
+```powershell
 python -m experiments.plots --input results/benchmark_v2
 ```
 
-`--output` phải là thư mục chưa có kết quả. Thông tin máy, phiên bản thư viện và γ hiệu dụng được ghi vào `settings.json`.
-Số đo thời gian phụ thuộc máy; chỉ so sánh các số được đo trong cùng một đợt chạy.
+Thay đường dẫn bằng thư mục kết quả muốn dùng. Thêm `--charts-only` nếu chỉ cần biểu đồ và thống kê, không dựng lại cây. Lệnh không cập nhật báo cáo Word/PDF.
 
-## 5. Thực nghiệm bổ sung
+Giữ `runs.csv`, `convergence.csv`, `paths.jsonl` và `settings.json` để tạo lại hình. Thời gian đo có thể thay đổi giữa các đợt chạy.
 
-```bash
-python -m experiments.extra radius                          # r_n thực tế, ngưỡng γ
-python -m experiments.extra scaling --input results/benchmark_v2        # số mũ thời gian theo vòng lặp
-python -m experiments.extra first-solution --input results/benchmark_v2 # RRT dừng ở lời giải đầu vs chạy hết ngân sách
-python -m experiments.extra reference --input results/benchmark_v2      # optimality gap so với đồ thị tầm nhìn
-python -m experiments.extra memory --seeds 5                # bộ nhớ đỉnh (tracemalloc)
-python -m experiments.extra equal-time --budget 1.0 --seeds 20          # cùng ngân sách thời gian
-python -m experiments.extra sensitivity --seeds 10          # độ nhạy η, p_g, γ
-```
+## Thư mục chính
 
-Kết quả ghi vào `results/extra/`.
+- `src/`: thuật toán, kiểm tra va chạm và giao diện.
+- `configs/maps/`: bản đồ JSON.
+- `experiments/`: benchmark, biểu đồ và thực nghiệm bổ sung.
+- `results/`: dữ liệu và hình kết quả.
+- `tests/`: chạy bằng `python -m pytest -q`.
 
-## 6. Kiểm thử
-
-```bash
-pip install -r requirements-dev.txt
-python -m pytest -q
-```
+Đây là lập kế hoạch đường đi hình học 2D, chưa bao gồm điều khiển robot thực tế.
