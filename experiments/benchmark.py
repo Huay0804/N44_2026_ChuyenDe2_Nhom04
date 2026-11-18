@@ -2,13 +2,31 @@ import argparse
 import csv
 from dataclasses import asdict, replace
 import json
+from math import pi, sqrt
+import os
+import platform
 from pathlib import Path
+import statistics
+
+import numpy as np
+import scipy
 
 from src import PlannerConfig, RRT, RRTStar, load_environment
 from src.utils import validate_path
 
 
-def run_benchmark(output, config, seeds, maps):
+def machine_info():
+    return {
+        "platform": platform.platform(),
+        "processor": platform.processor(),
+        "logical_cpus": os.cpu_count(),
+        "python": platform.python_version(),
+        "numpy": np.__version__,
+        "scipy": scipy.__version__,
+    }
+
+
+def run_benchmark(output, config, seeds, maps, repeats=1):
     seeds = list(seeds)
     environments = [load_environment(name) for name in maps]
     if not seeds or not environments:
@@ -25,6 +43,12 @@ def run_benchmark(output, config, seeds, maps):
     settings = {
         "config": asdict(config),
         "seeds": seeds,
+        "timing_repeats": repeats,
+        "machine": machine_info(),
+        "effective_gamma": {
+            environment.name: config.neighbor_gamma or 2.2 * sqrt(1.5 * environment.area / pi)
+            for environment in environments
+        },
         "maps": [environment.to_dict() for environment in environments],
     }
     (output / "settings.json").write_text(
@@ -68,6 +92,15 @@ def run_benchmark(output, config, seeds, maps):
                         result.path, environment, config.robot_radius
                     ):
                         raise ValueError(f"Invalid path: {environment.name}, {algorithm.name}, seed {seed}")
+
+                    if repeats > 1:
+                        # Kết quả hình học là tất định; chỉ thời gian chạy dao động, nên lấy trung vị.
+                        again = [algorithm(environment, config, seed).run() for _ in range(repeats - 1)]
+                        runs = [result, *again]
+                        result.planning_time = statistics.median(r.planning_time for r in runs)
+                        firsts = [r.time_to_first_solution for r in runs if r.time_to_first_solution is not None]
+                        if firsts:
+                            result.time_to_first_solution = statistics.median(firsts)
 
                     metrics = asdict(result)
                     metrics.pop("path")
@@ -114,11 +147,12 @@ def main():
     parser.add_argument("--step-size", type=float, default=0.8)
     parser.add_argument("--goal-bias", type=float, default=0.05)
     parser.add_argument("--robot-radius", type=float, default=0.2)
+    parser.add_argument("--repeats", type=int, default=1, help="Số lần đo lặp mỗi (bản đồ, thuật toán, seed); báo cáo trung vị thời gian")
     parser.add_argument("--protocol", choices=["fixed", "first"], default="fixed")
     parser.add_argument("--charts-only", action="store_true", help="Skip report map and tree snapshots")
     args = parser.parse_args()
-    if args.seeds < 1:
-        parser.error("--seeds must be positive")
+    if args.seeds < 1 or args.repeats < 1:
+        parser.error("--seeds and --repeats must be positive")
 
     config = PlannerConfig(
         step_size=args.step_size,
@@ -127,7 +161,7 @@ def main():
         robot_radius=args.robot_radius,
         stop_on_first=args.protocol == "first",
     )
-    output = run_benchmark(args.output, config, range(args.seeds), args.maps)
+    output = run_benchmark(args.output, config, range(args.seeds), args.maps, args.repeats)
     from .plots import generate
     generate(output, snapshots=not args.charts_only)
 

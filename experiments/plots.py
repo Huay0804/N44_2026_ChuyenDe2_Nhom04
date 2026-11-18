@@ -25,7 +25,7 @@ def save_figure(fig, destination):
     plt.close(fig)
 METRICS = (
     "planning_time", "path_length", "time_to_first_solution",
-    "number_of_nodes", "first_solution_iteration",
+    "number_of_nodes", "first_solution_iteration", "rewires",
 )
 
 

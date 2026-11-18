@@ -8,11 +8,14 @@ from .rrt import RRT
 class RRTStar(RRT):
     name = "RRT*"
 
-    def neighbor_radius(self):
-        node_count = len(self.tree.nodes) + 1
+    def gamma(self):
         # Workspace area gives a conservative default for the 2D radius.
-        gamma = self.config.neighbor_gamma or 2.2 * sqrt(1.5 * self.environment.area / pi)
-        return min(self.config.step_size, gamma * sqrt(log(node_count) / node_count))
+        return self.config.neighbor_gamma or 2.2 * sqrt(1.5 * self.environment.area / pi)
+
+    def neighbor_radius(self, node_count=None):
+        if node_count is None:
+            node_count = len(self.tree.nodes) + 1
+        return min(self.config.step_size, self.gamma() * sqrt(log(node_count) / node_count))
 
     def _choose_parent(self, point, nearest, neighbors, distances):
         # The nearest node remains a valid fallback outside the shrinking radius.
